@@ -13,9 +13,24 @@ const openai = new OpenAI()
 
 ffmpeg.setFfmpegPath(ffmpegPath)
 
+const openaiBaseSetings = {
+    model: 'gpt-3.5-turbo',
+    max_tokens: 100,
+    temperature: 0.6,
+}
+
+let i = 0
+
 // Record audio
-function recordAudio(filename) {
+async function recordAudio() {
     return new Promise((resolve, reject) => {
+        let recordTime = 0
+        const filename = `recorded_audios/recorded_audio${i}.wav`
+
+        setInterval(() => {
+            recordTime += 1
+        }, 1000)
+
         const micInstance = mic({
             rate: '16000',
             channels: '1',
@@ -23,6 +38,7 @@ function recordAudio(filename) {
             exitOnSilence: 5,
         })
 
+        console.log('-rec-')
         const micInputStream = micInstance.getAudioStream()
         const output = fs.createWriteStream(filename)
         const writable = new Readable().wrap(micInputStream)
@@ -31,15 +47,21 @@ function recordAudio(filename) {
 
         micInstance.start()
 
-        micInputStream.on('silence', () => {
+        micInputStream.on('silence', async () => {
+            if (recordTime <= 5) {
+                // too short, retry
+                micInstance.stop()
+                await recordAudio()
+            }
+
             micInstance.stop()
-            console.log('Finished recording by silence')
-            resolve()
+
+            i += 1
+
+            resolve(filename)
         })
 
-        micInputStream.on('error', (err) => {
-            reject(err)
-        })
+        micInputStream.on('error', reject)
     })
 }
 
@@ -53,13 +75,46 @@ async function transcribeAudio(filename) {
     return transcript.text
 }
 
-let i = 0
+const messages = [
+    {
+        role: 'system',
+        content: `tu es Henri.
+L'utilisateur s'appelle Jean Luc.
+L'utilisateur ne parle pas toujours a Henri.
+Si Henri ne comprend pas il répond uniquement "----".
+Si Henri ne peut pas apporter de réponse il répond uniquement "----"`,
+    },
+]
+
+async function complete() {
+    const completion = await openai.chat.completions.create({
+        messages,
+        ...openaiBaseSetings,
+    })
+
+    return completion
+}
+
 // main function
 async function main() {
-    const audioFilename = `recorded_audios/recorded_audio${i}.wav`
-    await recordAudio(audioFilename)
+    const audioFilename = await recordAudio()
     const transcription = await transcribeAudio(audioFilename)
-    console.log(`Transcription recorded_audio${i += 1}:`, transcription)
+    console.log(`Jean luc: ${transcription}`)
+    messages.push({
+        role: 'user',
+        content: transcription,
+    })
+
+    if (transcription.includes('Henri')) {
+        const answer = await complete(transcription)
+
+        console.log(`Henri: ${answer.choices[0].message.content}`)
+        messages.push({
+            role: 'assistant',
+            content: answer.choices[0].message.content,
+        })
+    }
+
     await main()
 }
 
