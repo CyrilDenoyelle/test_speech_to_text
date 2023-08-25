@@ -16,12 +16,8 @@ const openaiBaseSetings = {
 const messages = [
     {
         role: 'system',
-        content: `tu es ${assistantName}.
-L'utilisateur s'appelle ${userName}.
-L'utilisateur ne parle pas toujours a ${assistantName}.
-Si ${assistantName} ne comprend pas il répond uniquement "----".
-Si ${assistantName} ne peut pas apporter de réponse il répond uniquement "----".
-Si l'utilisateur dit le nom de ${assistantName}, ${assistantName} l'assistant répond même si il n'as pas compris.`,
+        content: `tu es l'assistant et tu te nommes ${assistantName}.
+L'utilisateur s'appelle ${userName}.`,
     },
 ]
 
@@ -51,10 +47,26 @@ async function sendAudioToOpenAi(audioFilename) {
             role: 'assistant',
             content: answer.choices[0].message.content,
         })
-        console.log(messages)
+    }
+}
+
+const queue = []
+
+const depile = async () => {
+    if (queue.length > 0) {
+        const audioFilename = queue[0]
+        queue.shift()
+        await sendAudioToOpenAi(audioFilename)
+        depile()
+    } else {
+        setTimeout(() => {
+            depile()
+        }, 500)
     }
 }
 
 parentPort.on('message', async (audioFilename) => {
-    await sendAudioToOpenAi(audioFilename)
+    queue.push(audioFilename)
 })
+
+depile()

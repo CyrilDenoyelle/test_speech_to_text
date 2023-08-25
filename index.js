@@ -30,7 +30,6 @@ async function recordAudio() {
             exitOnSilence: 5,
         })
 
-        console.log(`-rec-${i}-start`)
         const micInputStream = micInstance.getAudioStream()
         const output = fs.createWriteStream(filename)
         const writable = new Readable().wrap(micInputStream)
@@ -57,7 +56,7 @@ async function recordAudio() {
     })
 }
 
-const queue = new Worker('./openApiWorkers.js')
+const queue = new Worker('./openAiQueue.js')
 
 // main function
 async function main() {
