@@ -68,16 +68,6 @@ async function recordAudio() {
     })
 }
 
-// Transcribe audio
-async function transcribeAudio(filename) {
-    const transcript = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(filename),
-        model: 'whisper-1',
-    })
-
-    return transcript.text
-}
-
 const messages = [
     {
         role: 'system',
@@ -90,28 +80,30 @@ Si l'utilisateur dit le nom de ${assistantName}, ${assistantName} l'assistant r√
     },
 ]
 
-async function complete() {
-    const completion = await openai.chat.completions.create({
-        messages,
-        ...openaiBaseSetings,
-    })
-
-    return completion
-}
-
 // main function
 async function main() {
+    // record audio and resolve when it's usable
     const audioFilename = await recordAudio()
-    const transcription = await transcribeAudio(audioFilename)
-    console.log(`${userName}: ${transcription}`)
-    messages.push({
-        role: 'user',
-        content: transcription,
+    // transcribe audio to text
+    const transcription = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(audioFilename),
+        model: 'whisper-1',
     })
 
-    if (transcription.includes(`${assistantName}`)) {
-        const answer = await complete(transcription)
+    console.log(`${userName}: ${transcription.text}`)
+    // add text to messages as user
+    messages.push({
+        role: 'user',
+        content: transcription.text,
+    })
+    // if assistant name is in text, ask openai for an answer
+    if (transcription.text.includes(`${assistantName}`)) {
+        const answer = await openai.chat.completions.create({
+            messages,
+            ...openaiBaseSetings,
+        })
 
+        // add answer to messages as assistant
         console.log(`${assistantName}: ${answer.choices[0].message.content}`)
         messages.push({
             role: 'assistant',
@@ -119,6 +111,7 @@ async function main() {
         })
     }
 
+    // restart
     await main()
 }
 
