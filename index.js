@@ -41,7 +41,7 @@ async function recordAudio() {
             exitOnSilence: 5,
         })
 
-        console.log('-rec-')
+        console.log(`-rec-${i}-start`)
         const micInputStream = micInstance.getAudioStream()
         const output = fs.createWriteStream(filename)
         const writable = new Readable().wrap(micInputStream)
@@ -51,17 +51,17 @@ async function recordAudio() {
         micInstance.start()
 
         micInputStream.on('silence', async () => {
-            console.log(`-rec-stop-${recordTime}`)
             micInstance.stop()
 
             if (recordTime <= 5) {
                 // too short, retry
-                await recordAudio()
+                const retryFileName = await recordAudio()
+                resolve(retryFileName)
+            } else {
+                console.log(`-rec-${i}-stop-${recordTime}`)
+                i += 1
+                resolve(filename)
             }
-
-            i += 1
-
-            resolve(filename)
         })
 
         micInputStream.on('error', reject)
