@@ -51,14 +51,13 @@ async function recordAudio() {
         micInstance.start()
 
         micInputStream.on('silence', async () => {
-            console.log('-rec-stop-')
+            console.log(`-rec-stop-${recordTime}`)
+            micInstance.stop()
+
             if (recordTime <= 5) {
                 // too short, retry
-                micInstance.stop()
                 await recordAudio()
             }
-
-            micInstance.stop()
 
             i += 1
 
