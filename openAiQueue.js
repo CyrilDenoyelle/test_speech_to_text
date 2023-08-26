@@ -65,7 +65,7 @@ const depile = async () => {
     }
 }
 
-parentPort.on('message', async (audioFilename) => {
+parentPort.on('message', (audioFilename) => {
     queue.push(audioFilename)
 })
 
