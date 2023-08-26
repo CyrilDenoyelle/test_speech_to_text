@@ -4,59 +4,49 @@ const { parentPort } = require('worker_threads')
 
 const openai = new OpenAI()
 
-const userName = process.env.PROMPT_USER_NAME
-const assistantName = process.env.PROMPT_ASSISTANT_NAME
-
 const openaiBaseSetings = {
     model: 'gpt-3.5-turbo',
-    max_tokens: 100,
-    temperature: 0.6,
+    max_tokens: 150,
+    temperature: 0.7,
 }
 
-const messages = [
-    {
-        role: 'system',
-        content: `tu es l'assistant et tu te nommes ${assistantName}.
-L'utilisateur s'appelle ${userName}.`,
+const tasks = {
+    sendAudioToOpenAi: async (audioFilename) => {
+        // transcribe audio to text
+        const transcription = await openai.audio.transcriptions.create({
+            file: fs.createReadStream(audioFilename),
+            model: 'whisper-1',
+        })
+        parentPort.postMessage({
+            role: 'user',
+            content: transcription.text,
+        })
+
+        // if assistant name is in text,
     },
-]
-
-async function sendAudioToOpenAi(audioFilename) {
-    // transcribe audio to text
-    const transcription = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(audioFilename),
-        model: 'whisper-1',
-    })
-
-    console.log(`${userName}: ${transcription.text}`)
-    // add text to messages as user
-    messages.push({
-        role: 'user',
-        content: transcription.text,
-    })
-    // if assistant name is in text, ask openai for an answer
-    if (transcription.text.includes(`${assistantName}`)) {
+    sendChatToOpenAi: async (messages) => {
+        // ask openai for an answer
         const answer = await openai.chat.completions.create({
             messages,
             ...openaiBaseSetings,
         })
 
-        // add answer to messages as assistant
-        console.log(`${assistantName}: ${answer.choices[0].message.content}`)
-        messages.push({
+        parentPort.postMessage({
             role: 'assistant',
             content: answer.choices[0].message.content,
         })
-    }
+    },
 }
 
 const queue = []
 
 const depile = async () => {
     if (queue.length > 0) {
-        const audioFilename = queue[0]
+        const task = queue[0]
         queue.shift()
-        await sendAudioToOpenAi(audioFilename)
+
+        await tasks[task.f](...task.args)
+
         depile()
     } else {
         setTimeout(() => {
@@ -65,8 +55,8 @@ const depile = async () => {
     }
 }
 
-parentPort.on('message', (audioFilename) => {
-    queue.push(audioFilename)
+parentPort.on('message', (task) => {
+    queue.push(task)
 })
 
 depile()
