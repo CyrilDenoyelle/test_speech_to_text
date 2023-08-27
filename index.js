@@ -67,23 +67,43 @@ const messages = [
         role: 'system',
         content: `tu es l'assistant et tu te nommes ${rolesNames.assistant}.
 L'assistant fait des réponses courtes et précises.
-L'utilisateur s'appelle ${rolesNames.user}.`,
+D'autres utilisateurs parlent.
+Le pseudo de l'utilisateur qui parle est ajouté au début de chaque message.
+Le pseudo de l'utilisateur principal est ${rolesNames.user}.
+l'assistant ne met pas son pseudo au début de ses messages.`,
     },
 ]
-const queue = new Worker('./openAiQueue.js')
 
-queue.on('message', (message) => {
-    messages.push(message)
-    console.log(`${rolesNames.user}: ${message.content}`)
+const openAiQueue = new Worker('./workers/openAiQueue.js')
+const twitchApiQueue = new Worker('./workers/twitchApiQueue.js')
+
+openAiQueue.on('message', (message) => {
+    const { role, content } = message
+
+    console.log(`${rolesNames[role]}: ${content}`)
+    messages.push({
+        role,
+        content: `${rolesNames[role]}: ${content}`,
+    })
 
     // if assistant name is in text, ask worker for an openai answer
-    if (message.role === 'user' && message.content.includes(`${rolesNames.assistant}`)) {
-        queue.postMessage({ f: 'sendChatToOpenAi', args: [messages] })
+    if (role === 'user' && content.includes(`${rolesNames.assistant}`)) {
+        openAiQueue.postMessage({ f: 'sendChatToOpenAi', args: [messages] })
+    } else if (role === 'assistant') {
+        twitchApiQueue.postMessage({ f: 'sendMessageToChat', args: [content] })
     }
+})
 
-    // if (message.role === 'assistant') {
-    //     console.log(`${rolesNames.assistant}: ${message.content}`)
-    // }
+twitchApiQueue.on('message', (message) => {
+    const { role, content } = message
+
+    console.log(`in twitch chat: ${content}`)
+    messages.push({ role, content })
+
+    // if assistant name is in text, ask worker for an openai answer
+    if (role === 'user' && content.includes(`${rolesNames.assistant}`)) {
+        openAiQueue.postMessage({ f: 'sendChatToOpenAi', args: [messages] })
+    }
 })
 
 // main function
@@ -91,7 +111,7 @@ async function main() {
     // record audio and resolve when it's usable
     const audioFilename = await recordAudio()
 
-    queue.postMessage({ f: 'sendAudioToOpenAi', args: [audioFilename] })
+    openAiQueue.postMessage({ f: 'sendAudioToOpenAi', args: [audioFilename] })
 
     main()
 }

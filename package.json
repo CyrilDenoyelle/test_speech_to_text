@@ -10,12 +10,17 @@
   "license": "ISC",
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@twurple/api": "^7.0.1",
+    "@twurple/auth": "^7.0.1",
+    "@twurple/chat": "^7.0.1",
+    "@twurple/easy-bot": "^7.0.1",
+    "@twurple/eventsub-ws": "^7.0.1",
     "dotenv": "^16.3.1",
-    "fluent-ffmpeg": "^2.1.2",
-    "mic": "^2.1.2",
-    "openai": "^4.2.0",
     "eslint": "^8.39.0",
     "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-plugin-import": "^2.27.5"
+    "eslint-plugin-import": "^2.27.5",
+    "fluent-ffmpeg": "^2.1.2",
+    "mic": "^2.1.2",
+    "openai": "^4.2.0"
   }
 }
