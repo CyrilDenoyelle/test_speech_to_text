@@ -65,10 +65,10 @@ async function recordAudio() {
 const systemMessages = [
     {
         role: 'system',
-        content: `tu es l'assistant et tu te nommes ${rolesNames.assistant}.
-L'assistant fait des réponses courtes et précises.
+        content: `tu es l'assistant, tu te nommes ${rolesNames.assistant} et tu ne réponds qu'en ton nom.
 Le pseudo de l'utilisateur principal est ${rolesNames.user}.
-Il y a toujours le nom de la personne qui parle devant un message.`,
+L'assistant fait des réponses courtes et précises.
+Il y a toujours le nom de l'utilisateur qui s'exprime devant les messages.`,
     },
 ]
 
