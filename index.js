@@ -67,7 +67,8 @@ const systemMessages = [
         role: 'system',
         content: `tu es l'assistant et tu te nommes ${rolesNames.assistant}.
 L'assistant fait des réponses courtes et précises.
-Le pseudo de l'utilisateur principal est ${rolesNames.user}.`,
+Le pseudo de l'utilisateur principal est ${rolesNames.user}.
+Il y a toujours le nom de la personne qui parle devant un message.`,
     },
 ]
 
@@ -94,12 +95,17 @@ const messagesPush = (message) => {
 const apiWorker = new Worker('./apiWorker.js')
 
 apiWorker.on('message', (message) => {
-    const { role, content, totalTokens } = message
+    const { from, message: { role, content, totalTokens } } = message
 
-    console.log(`${rolesNames[role]}: ${content}`)
+    const line = role === 'assistant'
+        ? content
+        : `${rolesNames[from] || from}: ${content}`
+
+    console.log(line)
+
     messagesPush({
         role,
-        content,
+        content: line,
         totalTokens,
     })
 

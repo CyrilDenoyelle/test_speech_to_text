@@ -16,8 +16,11 @@ const openaiBaseSetings = {
 
     twitchBot.onMessage(async (messageEvent) => {
         parentPort.postMessage({
-            role: 'user',
-            content: `${messageEvent.userDisplayName}: ${messageEvent.text}`,
+            from: `twitchChat:${messageEvent.userDisplayName}`,
+            message: {
+                role: 'user',
+                content: messageEvent.text,
+            },
         })
     })
 
@@ -31,8 +34,11 @@ const openaiBaseSetings = {
                 model: 'whisper-1',
             })
             parentPort.postMessage({
-                role: 'user',
-                content: transcription.text,
+                from: 'user',
+                message: {
+                    role: 'user',
+                    content: transcription.text,
+                },
             })
         },
         sendChatToOpenAi: async (messages) => {
@@ -43,9 +49,12 @@ const openaiBaseSetings = {
             })
 
             parentPort.postMessage({
-                role: 'assistant',
-                content: answer.choices[0].message.content,
-                totalTokens: parseInt(answer.usage.total_tokens, 10),
+                from: 'assistant',
+                message: {
+                    role: 'assistant',
+                    content: answer.choices[0].message.content,
+                    totalTokens: parseInt(answer.usage.total_tokens, 10),
+                },
             })
         },
         sendMessageToChat: async (message) => {
