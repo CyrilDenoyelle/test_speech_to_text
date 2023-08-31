@@ -62,47 +62,62 @@ async function recordAudio() {
     })
 }
 
-const messages = [
+const systemMessages = [
     {
         role: 'system',
         content: `tu es l'assistant et tu te nommes ${rolesNames.assistant}.
 L'assistant fait des réponses courtes et précises.
-D'autres utilisateurs parlent.
-Le pseudo de l'utilisateur qui parle est ajouté au début de chaque message.
-Le pseudo de l'utilisateur principal est ${rolesNames.user}.
-l'assistant ne met pas son pseudo au début de ses messages.`,
+Le pseudo de l'utilisateur principal est ${rolesNames.user}.`,
     },
 ]
 
-const openAiQueue = new Worker('./workers/openAiQueue.js')
-const twitchApiQueue = new Worker('./workers/twitchApiQueue.js')
+const messages = []
+const messagesPush = (message) => {
+    messages.push(message)
+    // sum up the total tokens used by openai
 
-openAiQueue.on('message', (message) => {
-    const { role, content } = message
+    const getTotalTokens = (ms) => ms.reduce((acc, m) => {
+        if (m.totalTokens) {
+            return acc + m.totalTokens
+        }
+        return acc
+    }, 0)
+    let totalTokens = getTotalTokens(messages)
+
+    // shift messages until total tokens is less than process.env.OPENAI_API_MAX_CHAT_TOTAL_TOKEN
+    while (totalTokens > parseInt(process.env.OPENAI_API_MAX_CHAT_TOTAL_TOKEN, 10)) {
+        messages.shift()
+        totalTokens = getTotalTokens(messages)
+    }
+}
+
+const apiWorker = new Worker('./apiWorker.js')
+
+apiWorker.on('message', (message) => {
+    const { role, content, totalTokens } = message
 
     console.log(`${rolesNames[role]}: ${content}`)
-    messages.push({
+    messagesPush({
         role,
-        content: `${rolesNames[role]}: ${content}`,
+        content,
+        totalTokens,
     })
 
     // if assistant name is in text, ask worker for an openai answer
     if (role === 'user' && content.includes(`${rolesNames.assistant}`)) {
-        openAiQueue.postMessage({ f: 'sendChatToOpenAi', args: [messages] })
+        apiWorker.postMessage({
+            f: 'sendChatToOpenAi',
+            args: [[
+                ...systemMessages,
+                ...messages.map((m) => ({
+                    role: m.role,
+                    content: m.content,
+                })),
+            ]],
+        })
     } else if (role === 'assistant') {
-        twitchApiQueue.postMessage({ f: 'sendMessageToChat', args: [content] })
-    }
-})
-
-twitchApiQueue.on('message', (message) => {
-    const { role, content } = message
-
-    console.log(`in twitch chat: ${content}`)
-    messages.push({ role, content })
-
-    // if assistant name is in text, ask worker for an openai answer
-    if (role === 'user' && content.includes(`${rolesNames.assistant}`)) {
-        openAiQueue.postMessage({ f: 'sendChatToOpenAi', args: [messages] })
+        console.log('sending to twitch chat')
+        apiWorker.postMessage({ f: 'sendMessageToChat', args: [content] })
     }
 })
 
@@ -111,7 +126,7 @@ async function main() {
     // record audio and resolve when it's usable
     const audioFilename = await recordAudio()
 
-    openAiQueue.postMessage({ f: 'sendAudioToOpenAi', args: [audioFilename] })
+    apiWorker.postMessage({ f: 'sendAudioToOpenAi', args: [audioFilename] })
 
     main()
 }
