@@ -62,16 +62,6 @@ async function recordAudio() {
     })
 }
 
-const systemMessages = [
-    {
-        role: 'system',
-        content: `tu es l'assistant, tu te nommes ${rolesNames.assistant} et tu ne réponds qu'en ton nom.
-Le pseudo de l'utilisateur principal est ${rolesNames.user}.
-L'assistant fait des réponses courtes et précises.
-Il y a toujours le nom de l'utilisateur qui s'exprime devant les messages.`,
-    },
-]
-
 const messages = []
 const messagesPush = (message) => {
     messages.push(message)
@@ -93,6 +83,43 @@ const messagesPush = (message) => {
 }
 
 const apiWorker = new Worker('./apiWorker.js')
+
+const commandes = {
+    ban: {
+        description: 'Bannir un utilisateur',
+        exampleReponses: 'ban|userPseudo',
+        exampleOrder: '{assistantName} bannis l\'utilisateur {userPseudo}',
+        f: (userPseudo) => {
+            // ban user
+            console.log('userPseudo', userPseudo)
+        },
+    },
+    mark: {
+        description: 'Ajouter un marqueur au live',
+        exampleReponses: 'mark',
+        exampleOrder: '{assistantName} marqueur !',
+        f: () => {
+            // add a marker to the live
+            console.log('marker')
+        },
+    },
+}
+
+const assistantCommandCode = Math.random().toString(36).substring(7)
+
+const systemMessages = [
+    {
+        role: 'system',
+        content: `Devant les messages il y a toujours le nom ou pseudo de la personne qui parle.
+        Tu es l'assistant "${rolesNames.assistant}", tu réponds aux questions et discute en ton nom.
+        Tu doit uniquement executer les commandes que te donne ${rolesNames.user} en commençant par "${assistantCommandCode}".
+        Les commandes que tu peux répondre sont:
+        ${Object.entries(commandes).map(([key, c]) => `- ${key}: ${c.description}. example d'ordre: "${c.exampleOrder}" réponse de l'assistant: "${assistantCommandCode}|${c.exampleReponses}"`).join('\n')}
+        Quand tu exécute une commande, n'envoi que la commande en métant bien les séparateurs: |.`,
+    },
+]
+
+console.log('systemMessages', systemMessages)
 
 apiWorker.on('message', (message) => {
     const { from, message: { role, content, totalTokens } } = message
@@ -121,9 +148,12 @@ apiWorker.on('message', (message) => {
                 })),
             ]],
         })
-    } else if (role === 'assistant') {
-        console.log('sending to twitch chat')
+    } else if (role === 'assistant' && !content.includes(assistantCommandCode)) {
+        // console.log('sending to twitch chat')
         apiWorker.postMessage({ f: 'sendMessageToChat', args: [content] })
+    } else if (role === 'assistant' && content.includes(assistantCommandCode)) {
+        const [command, ...args] = content.split('|').slice(1)
+        commandes[command].f(...args)
     }
 })
 
