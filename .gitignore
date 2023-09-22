@@ -2,3 +2,4 @@ node_modules
 .env
 recorded_audios
 tokens
+messages.txt
