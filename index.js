@@ -32,7 +32,7 @@ async function recordAudio() {
             rate: '16000',
             channels: '1',
             fileType: 'wav',
-            exitOnSilence: 5,
+            exitOnSilence: process.env.MIC_EXIT_ON_SILENCE,
         })
 
         console.log(`-rec-${i}-start`)
@@ -47,7 +47,7 @@ async function recordAudio() {
         micInputStream.on('silence', async () => {
             micInstance.stop()
 
-            if (recordTime <= 5) {
+            if (recordTime <= process.env.MIC_MINIMUN_RECORD_DURATION) {
                 // too short, retry
                 const retryFileName = await recordAudio()
                 resolve(retryFileName)
