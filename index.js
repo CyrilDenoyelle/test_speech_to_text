@@ -74,8 +74,8 @@ Il y a toujours le nom de l'utilisateur qui s'exprime devant les messages.`,
 
 const messages = []
 const messagesPush = (message) => {
-    // write message to file
-    fs.appendFileSync('messages.txt', `${message.role}: ${message.content}\n\n`)
+    // write message to file with time of message to europ format
+    fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${message.content}\n\n`)
 
     messages.push(message)
     // sum up the total tokens used by openai
