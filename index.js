@@ -1,6 +1,10 @@
 const fs = require('fs')
 const ffmpeg = require('fluent-ffmpeg')
 const mic = require('mic')
+const gptTokenizer = require('gpt-tokenizer')
+
+gptTokenizer.default.modelName = 'cl100k_base'
+
 const { Readable } = require('stream')
 
 const { Worker } = require('worker_threads')
@@ -78,27 +82,22 @@ const messagesPush = (message) => {
     fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${message.content}\n\n`)
 
     messages.push(message)
-    // sum up the total tokens used by openai
-
-    const getTotalTokens = (ms) => ms.reduce((acc, m) => {
-        if (m.totalTokens) {
-            return acc + m.totalTokens
-        }
-        return acc
-    }, 0)
-    let totalTokens = getTotalTokens(messages)
 
     // shift messages until total tokens is less than process.env.OPENAI_API_MAX_CHAT_TOTAL_TOKEN
-    while (totalTokens > parseInt(process.env.OPENAI_API_MAX_CHAT_TOTAL_TOKEN, 10)) {
+    while (gptTokenizer.isWithinTokenLimit(
+        [...systemMessages, ...messages]
+            .map((m) => `${m.role}: "${m.content}"\n`)
+            .join(''),
+        parseInt(process.env.OPENAI_API_MAX_CHAT_TOTAL_TOKEN, 10),
+    ) === false) {
         messages.shift()
-        totalTokens = getTotalTokens(messages)
     }
 }
 
 const apiWorker = new Worker('./apiWorker.js')
 
 apiWorker.on('message', (message) => {
-    const { from, message: { role, content, totalTokens } } = message
+    const { from, message: { role, content } } = message
 
     const line = role === 'assistant'
         ? content
@@ -109,7 +108,6 @@ apiWorker.on('message', (message) => {
     messagesPush({
         role,
         content: line,
-        totalTokens,
     })
 
     // if assistant name is in text, ask worker for an openai answer

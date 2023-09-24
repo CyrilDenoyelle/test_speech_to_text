@@ -20,6 +20,7 @@
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.27.5",
     "fluent-ffmpeg": "^2.1.2",
+    "gpt-tokenizer": "^2.1.1",
     "mic": "^2.1.2",
     "openai": "^4.2.0"
   }

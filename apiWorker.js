@@ -53,7 +53,6 @@ const openaiBaseSetings = {
                 message: {
                     role: 'assistant',
                     content: answer.choices[0].message.content,
-                    totalTokens: parseInt(answer.usage.total_tokens, 10),
                 },
             })
         },
