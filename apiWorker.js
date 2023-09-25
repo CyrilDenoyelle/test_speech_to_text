@@ -6,7 +6,7 @@ const twitchBotGen = require('./auth/twitchBot')
 const openai = new OpenAI()
 
 const openaiBaseSetings = {
-    model: process.env.OPENAI_MODEL,
+    model: process.env.OPENAI_CHAT_MODEL,
     max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS_BY_MESSAGE, 10),
     temperature: parseInt(process.env.OPENAI_TEMPERATURE, 10),
 };
@@ -31,7 +31,7 @@ const openaiBaseSetings = {
             // transcribe audio to text
             const transcription = await openai.audio.transcriptions.create({
                 file: fs.createReadStream(audioFilename),
-                model: 'whisper-1',
+                model: process.env.OPENAI_STT_MODEL,
             })
             parentPort.postMessage({
                 from: 'user',
