@@ -66,26 +66,48 @@ async function recordAudio() {
     })
 }
 
-const systemMessages = [
+const twitchChatUsers = []
+
+const twitchChatUserString = async () => {
+    if (twitchChatUsers.length === 0) return ''
+    if (twitchChatUsers.length === 1) return `L'utilisateur: ${twitchChatUsers[0]} est dans le chat twitch.`
+    return `Les utilisateurs: ${twitchChatUsers.slice(0, -1).join(', ')} et ${twitchChatUsers.slice(-1)} sont dans le chat twitch.`
+}
+
+const systemMessages = () => [
     {
         role: 'system',
         content: `tu es l'assistant, tu te nommes ${rolesNames.assistant} et tu ne réponds qu'en ton nom.
 Le pseudo de l'utilisateur principal est ${rolesNames.user}.
 L'assistant fait des réponses courtes et précises.
-Il y a toujours le nom de l'utilisateur qui s'exprime devant les messages.`,
+Il y a toujours le nom de l'utilisateur qui s'exprime devant les messages.
+${twitchChatUserString()}`,
+    },
+    {
+        role: 'user',
+        content: `Dit moi ${rolesNames.assistant} comment ça va ?`,
+    },
+    {
+        role: 'assistant',
+        content: `${rolesNames.assistant}: Salut ${rolesNames.user}, ça va très bien, et vous ?`,
+    },
+    {
+        role: 'user',
+        content: `(twitch chat) Xx_dark_sasuke_xX: "Bonjour ${rolesNames.assistant} !"`,
+    },
+    {
+        role: 'assistant',
+        content: `${rolesNames.assistant}: Salut Xx_dark_sasuke_xX, ça va super, et toi ?`,
     },
 ]
 
 const messages = []
 const messagesPush = (message) => {
-    // write message to file with time of message to europ format
-    fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${message.content}\n\n`)
-
     messages.push(message)
 
     // shift messages until total tokens is less than process.env.OPENAI_API_MAX_CHAT_TOTAL_TOKEN
     while (gptTokenizer.isWithinTokenLimit(
-        [...systemMessages, ...messages]
+        [...systemMessages(), ...messages]
             .map((m) => `${m.role}: "${m.content}"\n`)
             .join(''),
         parseInt(process.env.OPENAI_API_MAX_CHAT_TOTAL_TOKEN, 10),
@@ -99,11 +121,19 @@ const apiWorker = new Worker('./apiWorker.js')
 apiWorker.on('message', (message) => {
     const { from, message: { role, content } } = message
 
-    const line = role === 'assistant'
-        ? content
-        : `${rolesNames[from] || from}: ${content}`
+    let line = ''
 
-    console.log(line)
+    if (from.includes('twitchChat')) {
+        const twitchChatUsername = from.split(':')[1]
+        if (!twitchChatUsers.includes(twitchChatUsername)) twitchChatUsers.push(twitchChatUsername)
+
+        line = `(twitch chat) ${twitchChatUsername}: "${content.replace('"', '\'\'')}"`
+    } else {
+        line = `${rolesNames[from] || from}: ${content}`
+    }
+
+    // write message to file with time of message to europ format
+    fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${line}\n\n`)
 
     messagesPush({
         role,
@@ -115,7 +145,7 @@ apiWorker.on('message', (message) => {
         apiWorker.postMessage({
             f: 'sendChatToOpenAi',
             args: [[
-                ...systemMessages,
+                ...systemMessages(),
                 ...messages.map((m) => ({
                     role: m.role,
                     content: m.content,
