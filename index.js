@@ -118,10 +118,23 @@ const messagesPush = (message) => {
 
 const apiWorker = new Worker('./apiWorker.js')
 
+const functions = {
+    addMarker: () => console.log('adding marker'),
+}
+
 apiWorker.on('message', (message) => {
-    const { from, message: { role, content } } = message
+    const { from, message: { role, content, functionCall } } = message
 
     let line = ''
+
+    if (functionCall) {
+        if (functions[functionCall.name]) {
+            functions[functionCall.name](...functionCall.args)
+            // write message to file with time of message to europ format
+            fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\nfunctionCall: ${functionCall.name}\n\n`)
+        }
+        return
+    }
 
     if (from.includes('twitchChat')) {
         const twitchChatUsername = from.split(':')[1]

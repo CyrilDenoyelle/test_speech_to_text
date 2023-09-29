@@ -5,6 +5,18 @@ const twitchBotGen = require('./auth/twitchBot')
 
 const openai = new OpenAI()
 
+const functions = [
+    {
+        canRun: ['user'],
+        name: 'addMarker',
+        description: 'ajoute un marqueur',
+        parameters: {
+            type: 'object',
+            properties: {},
+        },
+    },
+]
+
 const openaiBaseSetings = {
     model: process.env.OPENAI_CHAT_MODEL,
     max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS_BY_MESSAGE, 10),
@@ -42,17 +54,41 @@ const openaiBaseSetings = {
             })
         },
         sendChatToOpenAi: async (messages) => {
-            // ask openai for an answer
-            const answer = await openai.chat.completions.create({
+            const message = messages[messages.length - 1]
+
+            let authorisedFunctions = null
+
+            // filter functions by role in the processed message
+            if (message.content.includes('(twitch chat)')) {
+                authorisedFunctions = functions.filter((f) => f.canRun.includes('twitch chat'))
+            } else if (message.role === 'user') {
+                authorisedFunctions = functions.filter((f) => f.canRun.includes('user'))
+            } else if (message.role === 'assistant') {
+                authorisedFunctions = functions.filter((f) => f.canRun.includes('assistant'))
+            }
+
+            const options = {
                 messages,
                 ...openaiBaseSetings,
-            })
+            }
+
+            if (authorisedFunctions.length) {
+                options.functions = authorisedFunctions.map((f) => ({
+                    name: f.name,
+                    description: f.description,
+                    parameters: f.parameters,
+                }))
+            }
+
+            // ask openai for an answer
+            const answer = await openai.chat.completions.create(options)
 
             parentPort.postMessage({
                 from: 'assistant',
                 message: {
                     role: 'assistant',
                     content: answer.choices[0].message.content,
+                    functionCall: answer.choices[0].message.function_call,
                 },
             })
         },
