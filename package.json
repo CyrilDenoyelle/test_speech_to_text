@@ -9,19 +9,22 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@discordjs/opus": "^0.9.0",
+    "@discordjs/voice": "^0.16.0",
     "@twurple/api": "^7.0.1",
     "@twurple/auth": "^7.0.1",
     "@twurple/chat": "^7.0.1",
     "@twurple/easy-bot": "^7.0.1",
     "@twurple/eventsub-ws": "^7.0.1",
+    "discord.js": "^14.13.0",
     "dotenv": "^16.3.1",
     "eslint": "^8.39.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.27.5",
-    "fluent-ffmpeg": "^2.1.2",
     "gpt-tokenizer": "^2.1.1",
+    "libsodium-wrappers": "^0.7.13",
     "mic": "^2.1.2",
-    "openai": "^4.2.0"
+    "openai": "^4.2.0",
+    "wav": "^1.0.2"
   }
 }
