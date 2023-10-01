@@ -9,7 +9,7 @@ const {
 const { OpusEncoder } = require('@discordjs/opus')
 
 const {
-    joinVoiceChannel, EndBehaviorType,
+    joinVoiceChannel, EndBehaviorType, createAudioPlayer, createAudioResource,
 } = require('@discordjs/voice')
 
 require('dotenv').config()
@@ -106,6 +106,21 @@ discordClient.on('ready', () => {
             // remove user from talkingUsers
             talkingUsers.delete(userId)
         })
+    })
+
+    // when worker send audio file to talk in discord
+    apiWorker.on('message', (audioFileName) => {
+        const audioResource = createAudioResource(audioFileName)
+
+        // create audio player for voice channel
+        const audioPlayer = createAudioPlayer({
+            behaviors: {
+                noSubscriber: null,
+            },
+        })
+        connection.subscribe(audioPlayer)
+
+        audioPlayer.play(audioResource)
     })
 })
 

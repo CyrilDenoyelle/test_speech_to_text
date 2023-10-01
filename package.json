@@ -22,6 +22,7 @@
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.27.5",
     "gpt-tokenizer": "^2.1.1",
+    "gtts": "^0.2.1",
     "libsodium-wrappers": "^0.7.13",
     "mic": "^2.1.2",
     "openai": "^4.2.0",

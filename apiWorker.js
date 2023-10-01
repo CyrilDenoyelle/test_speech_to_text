@@ -1,6 +1,9 @@
 const { parentPort } = require('worker_threads')
 const fs = require('fs')
 const { OpenAI } = require('openai')
+
+const Gtts = require('gtts')
+
 const gptTokenizer = require('gpt-tokenizer')
 
 gptTokenizer.default.modelName = 'cl100k_base'
@@ -33,7 +36,7 @@ const systemMessages = () => [
         content: `tu es l'assistant, tu te nommes ${rolesNames.assistant} et tu ne réponds qu'en ton nom.
 Le pseudo de l'utilisateur principal est ${rolesNames.user}.
 L'assistant fait des réponses courtes et précises.
-Il y a toujours le nom de l'utilisateur qui s'exprime devant les messages.
+les pseudos des utilisateurs du chat twitch sont précédé de "(twitch chat) 'username':". 
 ${twitchChatUserString()}`,
     },
     {
@@ -42,7 +45,7 @@ ${twitchChatUserString()}`,
     },
     {
         role: 'assistant',
-        content: `${rolesNames.assistant}: Salut ${rolesNames.user}, ça va très bien, et vous ?`,
+        content: `Salut ${rolesNames.user}, ça va très bien, et vous ?`,
     },
     {
         role: 'user',
@@ -50,7 +53,7 @@ ${twitchChatUserString()}`,
     },
     {
         role: 'assistant',
-        content: `${rolesNames.assistant}: Salut Xx_dark_sasuke_xX, ça va super, et toi ?`,
+        content: 'Salut Xx_dark_sasuke_xX, ça va super, et toi ?',
     },
 ]
 
@@ -119,7 +122,7 @@ const functions = {
             })
         },
         sendMessage: async (message) => {
-            const { from, message: { role, content, functionCall } } = message
+            const { triggeredBy, from, message: { role, content, functionCall } } = message
 
             let line = ''
 
@@ -138,24 +141,23 @@ const functions = {
                     twitchChatUsers.push(twitchChatUsername)
                 }
 
-                line = `(twitch chat) ${twitchChatUsername}: "${content.replace('"', '\'\'')}"`
+                line = `(twitch chat) ${twitchChatUsername} a dit: "${content.replace('"', '\'\'')}"`
             } else {
-                line = `${rolesNames[from] || from}: ${content}`
+                line = content
             }
 
-            console.log(line)
-
+            const trimedContent = line.replace(`${rolesNames.assistant}: `, '')
             // write message to file with time of message to europ format
-            fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${line}\n\n`)
+            fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${trimedContent}\n\n`)
 
             messagesPush({
                 role,
-                content: line,
+                content: trimedContent,
             })
 
             // if assistant name is in text, ask worker for an openai answer
             if (role === 'user' && content.includes(`${rolesNames.assistant}`)) {
-                await tasks.sendChatToOpenAi([
+                await tasks.sendChatToOpenAi(from, [
                     ...systemMessages(),
                     ...messages.map((m) => ({
                         role: m.role,
@@ -163,10 +165,15 @@ const functions = {
                     })),
                 ])
             } else if (role === 'assistant') {
-                await tasks.sendMessageToChat([content])
+                if (triggeredBy.includes('twitchChat')) {
+                    console.log('sending message to chat', `${rolesNames.assistant}: ${trimedContent}`)
+                    await twitchBot.say(process.env.PROMPT_USER_NAME, [`${rolesNames.assistant}: ${trimedContent}`])
+                } else {
+                    await tasks.talkInDiscordVocal(trimedContent)
+                }
             }
         },
-        sendChatToOpenAi: async (chat) => {
+        sendChatToOpenAi: async (triggeredBy, chat) => {
             const message = chat[chat.length - 1]
 
             let authorisedFunctions = null
@@ -199,7 +206,8 @@ const functions = {
             // ask openai for an answer
             const answer = await openai.chat.completions.create(options)
 
-            tasks.sendMessage({
+            await tasks.sendMessage({
+                triggeredBy,
                 from: 'assistant',
                 message: {
                     role: 'assistant',
@@ -208,9 +216,14 @@ const functions = {
                 },
             })
         },
-        sendMessageToChat: async (message) => {
-            // send a message in the twitch chat with twurple
-            await twitchBot.say(process.env.PROMPT_USER_NAME, message)
+        talkInDiscordVocal: async (text) => {
+            const gtts = new Gtts(text, 'fr')
+            const fileName = `./recorded_audios/${new Date().toISOString().replace(/:/g, '-')}-${Math.random().toString(36).substring(7)}.wav`
+
+            gtts.save(fileName, (err) => {
+                if (err) { throw new Error(err) }
+                parentPort.postMessage(fileName)
+            })
         },
     }
 
