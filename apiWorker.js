@@ -130,7 +130,7 @@ const functions = {
                 if (functions[functionCall.name]) {
                     functions[functionCall.name].f(functionCall.args)
                     // write message to file with time of message to europ format
-                    fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\nfunctionCall: ${functionCall.name}\n\n`)
+                    fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${triggeredBy} => functionCall: ${functionCall.name}\n\n`)
                 }
                 return
             }
@@ -148,7 +148,7 @@ const functions = {
 
             const trimedContent = line.replace(`${rolesNames.assistant}: `, '')
             // write message to file with time of message to europ format
-            fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${trimedContent}\n\n`)
+            fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${from}: ${trimedContent}\n\n`)
 
             messagesPush({
                 role,
@@ -232,7 +232,11 @@ const functions = {
             const task = queue[0]
             queue.shift()
 
-            await tasks[task.f](...task.args)
+            try {
+                await tasks[task.f](...task.args)
+            } catch (error) {
+                fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\nERROR:\n${error}\n\n`)
+            }
 
             depile()
         } else {

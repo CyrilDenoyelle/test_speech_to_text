@@ -95,13 +95,12 @@ discordClient.on('ready', () => {
                 outputFileStream.end(() => {
                     fs.unlinkSync(audioFileName)
                 })
-                return
+            } else {
+                // give audio to worker
+                outputFileStream.end(() => {
+                    apiWorker.postMessage({ f: 'sendAudioToOpenAi', args: [audioFileName] })
+                })
             }
-
-            // give audio to worker
-            outputFileStream.end(() => {
-                apiWorker.postMessage({ f: 'sendAudioToOpenAi', args: [audioFileName] })
-            })
 
             // remove user from talkingUsers
             talkingUsers.delete(userId)
