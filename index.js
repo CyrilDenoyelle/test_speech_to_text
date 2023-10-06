@@ -14,6 +14,8 @@ const {
 
 require('dotenv').config()
 
+const pitchAndSpeedControl = require('./audio/pitchAndSpeedControl')
+
 const apiWorker = new Worker('./apiWorker.js')
 
 const {
@@ -108,8 +110,12 @@ discordClient.on('ready', () => {
     })
 
     // when worker send audio file to talk in discord
-    apiWorker.on('message', (audioFileName) => {
-        const audioResource = createAudioResource(audioFileName)
+    apiWorker.on('message', async (audioFileName) => {
+        const voiceChangedAudioFileName = `./recorded_audios/${new Date().toISOString().replace(/:/g, '-')}-voice-changed-${process.env.PROMPT_ASSISTANT_NAME}.wav`
+        await pitchAndSpeedControl(audioFileName, voiceChangedAudioFileName)
+
+        fs.unlinkSync(audioFileName)
+        const audioResource = createAudioResource(voiceChangedAudioFileName)
 
         // create audio player for voice channel
         const audioPlayer = createAudioPlayer({
