@@ -19,11 +19,6 @@ const openaiBaseSetings = {
     temperature: parseInt(process.env.OPENAI_TEMPERATURE, 10),
 }
 
-const rolesNames = {
-    user: process.env.PROMPT_USER_NAME,
-    assistant: process.env.PROMPT_ASSISTANT_NAME,
-}
-
 const twitchChatUsers = []
 const twitchChatUserString = async () => {
     if (twitchChatUsers.length === 0) return ''
@@ -34,23 +29,23 @@ const twitchChatUserString = async () => {
 const systemMessages = () => [
     {
         role: 'system',
-        content: `tu es l'assistant, tu te nommes ${rolesNames.assistant} et tu ne réponds qu'en ton nom.
-Le pseudo de l'utilisateur principal est ${rolesNames.user}.
+        content: `tu es l'assistant, tu te nommes ${process.env.PROMPT_ASSISTANT_NAME} et tu ne réponds qu'en ton nom.
+Le pseudo de l'utilisateur principal est ${process.env.PROMPT_USER_NAME}.
 L'assistant fait des réponses courtes et précises.
 les pseudos des utilisateurs du chat twitch sont précédé de "(twitch chat) 'username':". 
 ${twitchChatUserString()}`,
     },
     {
         role: 'user',
-        content: `Dit moi ${rolesNames.assistant} comment ça va ?`,
+        content: `Dit moi ${process.env.PROMPT_ASSISTANT_NAME} comment ça va ?`,
     },
     {
         role: 'assistant',
-        content: `Salut ${rolesNames.user}, ça va très bien, et vous ?`,
+        content: `Salut ${process.env.PROMPT_USER_NAME}, ça va très bien, et vous ?`,
     },
     {
         role: 'user',
-        content: `(twitch chat) Xx_dark_sasuke_xX: "Bonjour ${rolesNames.assistant} !"`,
+        content: `(twitch chat) Xx_dark_sasuke_xX: "Bonjour ${process.env.PROMPT_ASSISTANT_NAME} !"`,
     },
     {
         role: 'assistant',
@@ -143,7 +138,7 @@ const functions = {
                             from: 'system',
                             message: {
                                 role: 'system',
-                                content: `${rolesNames.assistant}, ${functionCall.name} = "${resultString}".`,
+                                content: `${process.env.PROMPT_ASSISTANT_NAME}, ${functionCall.name} = "${resultString}".`,
                             },
                         })
                     } catch (error) {
@@ -164,7 +159,7 @@ const functions = {
                 line = content
             }
 
-            const trimedContent = line.replace(`${rolesNames.assistant}: `, '')
+            const trimedContent = line.replace(`${process.env.PROMPT_ASSISTANT_NAME}: `, '')
             // write message to file with time of message to europ format
             fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${from}: ${trimedContent}\n\n`)
 
@@ -175,7 +170,7 @@ const functions = {
 
             // if assistant name is in text, ask worker for an openai answer
             if (['user', 'system'].includes(role)
-                && content.includes(`${rolesNames.assistant}`)) {
+                && content.includes(`${process.env.PROMPT_ASSISTANT_NAME}`)) {
                 await tasks.sendChatToOpenAi(from, [
                     ...systemMessages(),
                     ...messages.map((m) => ({
@@ -185,8 +180,8 @@ const functions = {
                 ])
             } else if (role === 'assistant') {
                 if (triggeredBy.includes('twitchChat')) {
-                    console.log('sending message to chat', `${rolesNames.assistant}: ${trimedContent}`)
-                    await twitchBot.say(process.env.PROMPT_USER_NAME, [`${rolesNames.assistant}: ${trimedContent}`])
+                    console.log('sending message to chat', `${process.env.PROMPT_ASSISTANT_NAME}: ${trimedContent}`)
+                    await twitchBot.say(process.env.PROMPT_USER_NAME, [`${process.env.PROMPT_ASSISTANT_NAME}: ${trimedContent}`])
                 } else {
                     await tasks.talkInDiscordVocal(trimedContent)
                 }
