@@ -3,12 +3,7 @@ const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path
 
 ffmpeg.setFfmpegPath(ffmpegPath)
 
-module.exports = (inputFilePath, outputFilePath) => new Promise((resolve, reject) => {
-    const speed = process.env.ASSISTANT_VOICE_SPEED
-    // Adjust the speed factor (1.0 for normal speed)
-    const pitch = process.env.ASSISTANT_VOICE_PITCH
-    // Adjust the pitch factor (1.0 for normal pitch)
-
+module.exports = (inputFilePath, outputFilePath, speed, pitch) => new Promise((resolve, reject) => {
     // Create an FFmpeg command
     const command = ffmpeg()
     // Input file

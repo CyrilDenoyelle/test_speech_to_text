@@ -9,6 +9,7 @@ const gptTokenizer = require('gpt-tokenizer')
 gptTokenizer.default.modelName = 'cl100k_base'
 
 const twitchBotGen = require('./auth/twitchBot')
+const customFunctions = require('./customFunctions')
 
 const openai = new OpenAI()
 
@@ -81,8 +82,12 @@ const functions = {
             type: 'object',
             properties: {},
         },
-        f: () => console.log('adding marker'),
+        f: () => {
+            console.log('adding marker')
+            return 'marker added'
+        },
     },
+    ...customFunctions,
 };
 
 (async () => {
@@ -128,9 +133,22 @@ const functions = {
 
             if (functionCall) {
                 if (functions[functionCall.name]) {
-                    functions[functionCall.name].f(functionCall.args)
-                    // write message to file with time of message to europ format
-                    fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${triggeredBy} => functionCall: ${functionCall.name}\n\n`)
+                    try {
+                        const args = JSON.parse(functionCall.arguments)
+                        const resultString = await functions[functionCall.name].f(args)
+                        // write message to file with time of message to europ format
+                        fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${triggeredBy} => functionCall: ${functionCall.name}(${functionCall.arguments})\n\n`)
+
+                        await tasks.sendMessage({
+                            from: 'system',
+                            message: {
+                                role: 'system',
+                                content: `${rolesNames.assistant}, ${functionCall.name} = "${resultString}".`,
+                            },
+                        })
+                    } catch (error) {
+                        console.log('error', error)
+                    }
                 }
                 return
             }
@@ -156,7 +174,8 @@ const functions = {
             })
 
             // if assistant name is in text, ask worker for an openai answer
-            if (role === 'user' && content.includes(`${rolesNames.assistant}`)) {
+            if (['user', 'system'].includes(role)
+                && content.includes(`${rolesNames.assistant}`)) {
                 await tasks.sendChatToOpenAi(from, [
                     ...systemMessages(),
                     ...messages.map((m) => ({
@@ -176,7 +195,7 @@ const functions = {
         sendChatToOpenAi: async (triggeredBy, chat) => {
             const message = chat[chat.length - 1]
 
-            let authorisedFunctions = null
+            let authorisedFunctions = []
 
             // filter functions by role in the processed message
             if (message.content.includes('(twitch chat)')) {
@@ -222,7 +241,11 @@ const functions = {
 
             gtts.save(fileName, (err) => {
                 if (err) { throw new Error(err) }
-                parentPort.postMessage(fileName)
+                parentPort.postMessage({
+                    fileName,
+                    speed: process.env.ASSISTANT_VOICE_SPEED,
+                    pitch: process.env.ASSISTANT_VOICE_PITCH,
+                })
             })
         },
     }

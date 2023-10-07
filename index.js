@@ -110,9 +110,14 @@ discordClient.on('ready', () => {
     })
 
     // when worker send audio file to talk in discord
-    apiWorker.on('message', async (audioFileName) => {
+    apiWorker.on('message', async ({ fileName: audioFileName, speed, pitch }) => {
         const voiceChangedAudioFileName = `./recorded_audios/${new Date().toISOString().replace(/:/g, '-')}-voice-changed-${process.env.PROMPT_ASSISTANT_NAME}.wav`
-        await pitchAndSpeedControl(audioFileName, voiceChangedAudioFileName)
+        await pitchAndSpeedControl(
+            audioFileName,
+            voiceChangedAudioFileName,
+            speed,
+            pitch,
+        )
 
         fs.unlinkSync(audioFileName)
         const audioResource = createAudioResource(voiceChangedAudioFileName)
