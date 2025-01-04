@@ -72,14 +72,24 @@ discordClient.on('ready', () => {
                 duration: MIC_EXIT_ON_SILENCE,
             },
         })
+        const audioFileFolder = 'recorded_audios'
+        const audioFileName = `${new Date().toISOString().replace(/:/g, '-')}-${user.username}.wav`
+        const audioFilePath = `./${audioFileFolder}/${audioFileName}`
 
-        const audioFileName = `./recorded_audios/${new Date().toISOString().replace(/:/g, '-')}-${user.username}.wav`
-
-        const outputFileStream = new wav.FileWriter(audioFileName, {
-            sampleRate: 48000,
-            bitDepth: 16,
-            channels: 1,
-        })
+        let retry = 0
+        const outputFileStream = (function recursCreate() {
+            try {
+                return new wav.FileWriter(audioFilePath, {
+                    sampleRate: 48000,
+                    bitDepth: 16,
+                    channels: 1,
+                })
+            } catch (error) {
+                retry += 1
+                if (retry > 3) throw new Error(`too many retry to create audio file: ${JSON.stringify(error, null, 2)}`)
+                return recursCreate()
+            }
+        }())
 
         const encoder = new OpusEncoder(48000, 1)
 
@@ -91,16 +101,18 @@ discordClient.on('ready', () => {
         subscription.once('end', async () => {
             // check if record duration is not too short
             if (new Date() - MIC_EXIT_ON_SILENCE - timeStart < MIC_MINIMUN_RECORD_DURATION) {
-                talkingUsers.delete(userId)
-
                 // delete the too short output file
                 outputFileStream.end(() => {
-                    fs.unlinkSync(audioFileName)
+                    try {
+                        fs.unlinkSync(audioFilePath)
+                    } catch (error) {
+                        console.log('error while deleting too short audio file', error)
+                    }
                 })
             } else {
                 // give audio to worker
                 outputFileStream.end(() => {
-                    apiWorker.postMessage({ f: 'sendAudioToOpenAi', args: [audioFileName] })
+                    apiWorker.postMessage({ f: 'transcribeAudio', args: [audioFileFolder, audioFileName] })
                 })
             }
 

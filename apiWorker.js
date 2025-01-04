@@ -5,6 +5,37 @@ const { OpenAI } = require('openai')
 const Gtts = require('gtts')
 
 const gptTokenizer = require('gpt-tokenizer')
+// const util = require('util')
+// const { exec } = require('child_process')
+
+// const execAsync = util.promisify(exec)
+
+// use spanw instead of exec to avoid buffer limit
+const { spawn } = require('child_process')
+
+const promesifySpawn = (command, args) => new Promise((resolve, reject) => {
+    const process = spawn(command, args)
+
+    let output = ''
+    let error = ''
+
+    process.stdout.on('data', (data) => {
+        output += data.toString()
+    })
+
+    process.stderr.on('data', (err) => {
+        console.log('stderr.on err', err.toString())
+        error += error.toString()
+    })
+
+    process.on('close', (code) => {
+        if (code === 0) {
+            resolve(output)
+        } else {
+            reject(error)
+        }
+    })
+})
 
 gptTokenizer.default.modelName = 'cl100k_base'
 
@@ -16,14 +47,14 @@ const openai = new OpenAI()
 const openaiBaseSetings = {
     model: process.env.OPENAI_CHAT_MODEL,
     max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS_BY_MESSAGE, 10),
-    temperature: parseInt(process.env.OPENAI_TEMPERATURE, 10),
+    temperature: parseInt(process.env.AI_TEMPERATURE, 10),
 }
 
 const twitchChatUsers = []
 const twitchChatUserString = async () => {
     if (twitchChatUsers.length === 0) return ''
     if (twitchChatUsers.length === 1) return `L'utilisateur: ${twitchChatUsers[0]} est dans le chat twitch.`
-    return `Les utilisateurs: ${twitchChatUsers.slice(0, -1).join(', ')} et ${twitchChatUsers.slice(-1)} sont dans le chat twitch.`
+    return `Les utilisateurs: ${twitchChatUsers.slice(0, -1).join(', ')} et ${twitchChatUsers.slice(-1)} sont dans le chat twitch. aucun d'entre eux n'est administrateur`
 }
 
 const systemMessages = () => [
@@ -68,20 +99,9 @@ const messagesPush = (message) => {
     }
 }
 
+const takingNotes = false
+
 const functions = {
-    addMarker: {
-        canRun: ['user'],
-        name: 'addMarker',
-        description: 'ajoute un marqueur',
-        parameters: {
-            type: 'object',
-            properties: {},
-        },
-        f: () => {
-            console.log('adding marker')
-            return 'marker added'
-        },
-    },
     ...customFunctions,
 };
 
@@ -104,26 +124,36 @@ const functions = {
     })
 
     const tasks = {
-        sendAudioToOpenAi: async (audioFilename) => {
+        transcribeAudio: async (audioFilePath, audioFilename) => {
             // transcribe audio to text
-            const transcription = await openai.audio.transcriptions.create({
-                file: fs.createReadStream(audioFilename),
-                model: process.env.OPENAI_STT_MODEL,
-            })
-            const message = {
-                role: 'user',
-                content: transcription.text,
-            }
-            messagesPush(message)
+            try {
+                const out = await promesifySpawn('python', ['./whisper.py', audioFilePath, audioFilename])
 
-            await tasks.sendMessage({
-                from: 'user',
-                message,
-            })
+                console.log('-------------------')
+                console.log('transcription', out)
+                console.log('---', audioFilename)
+
+                const message = {
+                    role: 'user',
+                    content: out,
+                }
+                messagesPush(message)
+
+                if (takingNotes) {
+                    fs.appendFileSync(`./messages/${process.env.NOTE_FILE}`, `${message.role}: ${message.content}\n\n`)
+                } else {
+                    await tasks.sendMessage({
+                        from: 'user',
+                        message,
+                    })
+                }
+            } catch (error) {
+                console.log('error while transcribing audio', error)
+                fs.appendFileSync(`./messages/${process.env.NOTE_FILE}`, `${new Date().toLocaleString('fr-FR')}\nERROR transcribing audio:\n${error}\n\n`)
+            }
         },
         sendMessage: async (message) => {
             const { triggeredBy, from, message: { role, content, functionCall } } = message
-
             let line = ''
 
             if (functionCall) {
@@ -132,7 +162,10 @@ const functions = {
                         const args = JSON.parse(functionCall.arguments)
                         const resultString = await functions[functionCall.name].f(args)
                         // write message to file with time of message to europ format
-                        fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${triggeredBy} => functionCall: ${functionCall.name}(${functionCall.arguments})\n\n`)
+                        fs.appendFileSync(
+                            `./messages/${process.env.NOTE_FILE}`,
+                            `${new Date().toLocaleString('fr-FR')}\n${triggeredBy} => functionCall: ${functionCall.name}(${functionCall.arguments})\n\n`,
+                        )
 
                         await tasks.sendMessage({
                             from: 'system',
@@ -154,14 +187,14 @@ const functions = {
                     twitchChatUsers.push(twitchChatUsername)
                 }
 
-                line = `(twitch chat) ${twitchChatUsername} a dit: "${content.replace('"', '\'\'')}"`
+                line = `(twitch chat) ${twitchChatUsername} a dit: "${content.replaceAll('"', '\'\'')}"`
             } else {
                 line = content
             }
 
-            const trimedContent = line.replace(`${process.env.PROMPT_ASSISTANT_NAME}: `, '')
+            const trimedContent = line.replaceAll(`${process.env.PROMPT_ASSISTANT_NAME}: `, '').replaceAll('(twitch chat)', '')
             // write message to file with time of message to europ format
-            fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\n${from}: ${trimedContent}\n\n`)
+            fs.appendFileSync(`./messages/${process.env.NOTE_FILE}`, `${new Date().toLocaleString('fr-FR')}\n${from}: ${trimedContent}\n\n`)
 
             messagesPush({
                 role,
@@ -170,7 +203,11 @@ const functions = {
 
             // if assistant name is in text, ask worker for an openai answer
             if (['user', 'system'].includes(role)
-                && content.includes(`${process.env.PROMPT_ASSISTANT_NAME}`)) {
+                && content
+                    .toLowerCase()
+                    .replace('-', ' ')
+                    .includes(process.env.PROMPT_ASSISTANT_NAME.toLowerCase().replace('-', ' '))) {
+                console.log('sending messages to openai')
                 await tasks.sendChatToOpenAi(from, [
                     ...systemMessages(),
                     ...messages.map((m) => ({
@@ -253,7 +290,7 @@ const functions = {
             try {
                 await tasks[task.f](...task.args)
             } catch (error) {
-                fs.appendFileSync('messages.txt', `${new Date().toLocaleString('fr-FR')}\nERROR:\n${error}\n\n`)
+                fs.appendFileSync(`./messages/${process.env.NOTE_FILE}`, `${new Date().toLocaleString('fr-FR')}\nERROR in task:\n${error}\n\n`)
             }
 
             depile()

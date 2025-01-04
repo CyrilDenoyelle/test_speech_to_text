@@ -3,3 +3,5 @@ node_modules
 recorded_audios
 tokens
 messages.txt
+/messages
+/__pycache__
